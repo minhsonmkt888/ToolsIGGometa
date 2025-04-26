@@ -1,0 +1,85 @@
+// ✅ Convert xử lý VIA sang Task + SemaphoreSlim + delay SAU như yêu cầu
+
+SemaphoreSlim semaphore = new SemaphoreSlim(soluongmax);
+List<Task> runningTasks = new List<Task>();
+
+for (int i = 0; i < bangchinh.Rows.Count - 1; i++)
+{
+    int vitri = i;
+
+    bool check = false;
+    try
+    {
+        check = (bool)bangchinh.Rows[vitri].Cells[0].Value;
+    }
+    catch { }
+
+    if (!check) continue;
+
+    await semaphore.WaitAsync();
+
+    var task = Task.Run(() =>
+    {
+        try
+        {
+            if (dunglai)
+            {
+                Invoke((MethodInvoker)(() =>
+                {
+                    bangchinh.Rows[vitri].Cells[10].Value = "Đã Dừng Lại";
+                }));
+                return;
+            }
+
+            HttpRequest request = new HttpRequest();
+            request.Cookies = new CookieDictionary(false);
+
+            Interlocked.Increment(ref soluongdangchay);
+            Interlocked.Increment(ref soviadachay);
+
+            Invoke((MethodInvoker)(() =>
+            {
+                txttientrinh.Text = "Tiến Trình: " + soviadachay + "/" + tongsovia + " Via";
+                bangchinh.Rows[vitri].Cells[8].Style.ForeColor = Color.Black;
+            }));
+
+            // TODO: Xử lý VIA ở đây
+            // Ví dụ cập nhật:
+            Invoke((MethodInvoker)(() =>
+            {
+                bangchinh.Rows[vitri].Cells[8].Value = "Đăng Nhập Thành Công";
+            }));
+
+            // Xử lý lỗi:
+            // Invoke((MethodInvoker)(() =>
+            // {
+            //     bangchinh.Rows[vitri].Cells[8].Value = "Đăng Nhập Thất Bại";
+            // }));
+
+            // Kết thúc xử lý VIA
+            try { request.Close(); } catch { }
+
+            Interlocked.Increment(ref viadachayxong);
+        }
+        catch
+        {
+            Invoke((MethodInvoker)(() =>
+            {
+                bangchinh.Rows[vitri].Cells[8].Value = "Xử Lý Lỗi";
+            }));
+        }
+        finally
+        {
+            // ✅ Delay sau khi xử lý xong VIA (giữ như code cũ)
+            int delay = 1000 * (int)sdelayluong;
+            Thread.Sleep(delay);
+
+            Interlocked.Decrement(ref soluongdangchay);
+            semaphore.Release();
+        }
+    });
+
+    runningTasks.Add(task);
+}
+
+await Task.WhenAll(runningTasks); // Đợi tất cả VIA xử lý xong
